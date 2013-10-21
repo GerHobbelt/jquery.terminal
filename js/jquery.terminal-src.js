@@ -954,7 +954,7 @@
                     return result;
                 }
             }
-            if (enabled) {
+            if (enabled && self.css('visibility') !== 'hidden') {
                 if (e.which !== 38 &&
                     !(e.which === 80 && e.ctrlKey)) {
                     first_up_history = true;
