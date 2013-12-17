@@ -557,24 +557,16 @@
                 if (enabled) {
                     if (data[data.length-1] !== item) {
                         data.push(item);
-                        pos = data.length-1;
                         if (size && data.length > size) {
                             data = data.slice(-size);
                         }
+                        pos = data.length-1;
                         $.Storage.set(name + 'commands', $.json_stringify(data));
                     }
                 }
             },
             data: function() {
                 return data;
-            },
-            next: function() {
-                if (pos < data.length-1) {
-                    ++pos;
-                }
-                if (pos !== -1) {
-                    return data[pos];
-                }
             },
             reset: function() {
                 pos = data.length-1;
@@ -588,13 +580,24 @@
             position: function() {
                 return pos;
             },
+            current: function() {
+                return data[pos];
+            },
+            next: function() {
+                if (pos < data.length-1) {
+                    ++pos;
+                }
+                if (pos !== -1) {
+                    return data[pos];
+                }
+            },
             previous: function() {
                 var old = pos;
                 if (pos > 0) {
                     --pos;
                 }
                 if (old !== -1) {
-                    return data[old];
+                    return data[pos];
                 }
             },
             clear: function() {
@@ -673,14 +676,16 @@
         // -----------------------------------------------------------------------
         function reverse_history_search(next) {
             var history_data = history.data();
-            var regex;
+            var regex, save_string;
             var len = history_data.length;
             if (next && reverse_search_position > 0) {
                 len -= reverse_search_position;
             }
             if (reverse_search_string.length > 0) {
                 for (var j=reverse_search_string.length; j>0; j--) {
-                    regex = new RegExp('^' + reverse_search_string.substring(0, j));
+                    save_string = reverse_search_string.substring(0, j).
+                        replace(/([.*+{}\[\]?])/g, '\\$1');
+                    regex = new RegExp(save_string);
                     for (var i=len; i--;) {
                         if (regex.test(history_data[i])) {
                             reverse_search_position = history_data.length - i;
@@ -696,6 +701,7 @@
                     }
                 }
             }
+            reverse_search_string = ''; // clear if not found any
         }
         // -----------------------------------------------------------------------
         // :: Recalculate number of characters in command line
@@ -1027,9 +1033,11 @@
                     //UP ARROW or CTRL+P
                     if (first_up_history) {
                         last_command = command;
+                        self.set(history.current());
+                    } else {
+                        self.set(history.previous());
                     }
                     first_up_history = false;
-                    self.set(history.previous());
                 } else if (history && e.which === 40 ||
                            (e.which === 78 && e.ctrlKey)) {
                     //DOWN ARROW or CTRL+N
@@ -1078,6 +1086,7 @@
                         command = last_command;
                         redraw();
                         reverse_search = false;
+                        reverse_search_string = '';
                     }
                 } else if (e.which === 39 ||
                            (e.which === 70 && e.ctrlKey)) {
@@ -2115,8 +2124,9 @@
     // :: TERMINAL PLUGIN CODE
     // -----------------------------------------------------------------------
     var version = '{{VER}}';
+    var version_set = !version.match(/^\{\{/);
     var copyright = 'Copyright (c) 2011-2013 Jakub Jankiewicz <http://jcubic.pl>';
-    var version_string = 'version ' + version;
+    var version_string = version_set ? ' version ' + version : ' ';
     //regex is for placing version string aligned to the right
     var reg = new RegExp(" {" + version_string.length + "}$");
     // -----------------------------------------------------------------------
@@ -2124,16 +2134,16 @@
     // -----------------------------------------------------------------------
     var signatures = [
         ['jQuery Terminal', '(c) 2011-2013 jcubic'],
-        ['jQuery Terminal Emulator v. ' + version,
+        ['jQuery Terminal Emulator' + (version_set ? ' v. ' + version : ''),
          copyright.replace(/ *<.*>/, '')],
-        ['jQuery Terminal Emulator version ' + version_string,
+        ['jQuery Terminal Emulator' + (version_set ? version_string : ''),
          copyright.replace(/^Copyright /, '')],
         ['      _______                 ________                        __',
          '     / / _  /_ ____________ _/__  ___/______________  _____  / /',
          ' __ / / // / // / _  / _/ // / / / _  / _/     / /  \\/ / _ \\/ /',
          '/  / / // / // / ___/ // // / / / ___/ // / / / / /\\  / // / /__',
          '\\___/____ \\\\__/____/_/ \\__ / /_/____/_//_/ /_/ /_/  \\/\\__\\_\\___/',
-         '         \\/          /____/                                   '.replace(reg, '') +
+         '         \\/          /____/                                   '.replace(reg, ' ') +
          version_string,
          copyright],
         ['      __ _____                     ________                              __',
@@ -2361,10 +2371,17 @@
                     callback(commands);
                 };
                 finalize(result);
-            } else if (type !== 'function') {
-                throw type + " is invalid interpreter value";
             } else {
-                finalize({interpreter: interpreter, completion: settings.completion});
+                // allow $('<div/>).terminal();
+                if (type === 'undefined') {
+                    interpreter = $.noop;
+                } else if (type !== 'function') {
+                    throw type + " is invalid interpreter value";
+                }
+                finalize({
+                    interpreter: interpreter,
+                    completion: settings.completion
+                });
             }
         }
         // -----------------------------------------------------------------------
@@ -3307,6 +3324,7 @@
                 // -----------------------------------------------------------------------
                 echo: function(string, options) {
                     try {
+                        string = string || '';
                         var settings = $.extend({
                             flush: true,
                             raw: false,
@@ -3315,7 +3333,6 @@
                         output_buffer = [];
                         draw_line(string, settings);
                         if (settings.flush) {
-                            console.log('flush');
                             flush();
                         }
                         lines.push([string, settings]);
@@ -3329,7 +3346,6 @@
                             }
                         }
                         on_scrollbar_show_resize();
-                        console.log(string);
                     } catch (e) {
                         // if echo throw exception we can't use error to display that exception
                         alert('terminal.echo ' + exception_message(e) + '\n' +
@@ -3612,6 +3628,7 @@
                     //default name is login so you can pass true
                 })($.type(settings.login) === 'boolean' ? 'login' : settings.login);
             }
+            terminals.append(self);
             if (validate('prompt', settings.prompt)) {
                 var interpreters;
                 var command_line;
@@ -3645,7 +3662,6 @@
                         },
                         commands: commands
                     });
-                    terminals.append(self);
                     if (settings.enabled === true) {
                         self.focus(undefined, true);
                     } else {
