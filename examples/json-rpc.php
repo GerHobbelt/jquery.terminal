@@ -120,14 +120,14 @@ function handle_json_rpc($object) {
   // handle Errors
   if (!$input) {
     if ($GLOBALS['HTTP_RAW_POST_DATA'] == "") {
-      echo response(null, 0, array("code"=> -32700,
-				   "message"=>"Parse Error: no data"));
+      echo response(null, 0, array("code" => -32700,
+				   "message" => "Parse Error: no data"));
     } else {
       // json parse error
       $error = json_error();
       $id = extract_id();
-      echo response(null, $id, array("code"=> -32700,
-				     "message"=>"Parse Error: $error"));
+      echo response(null, $id, array("code" => -32700,
+				     "message" => "Parse Error: $error"));
     }
     exit;
   } else {
@@ -193,7 +193,7 @@ function handle_json_rpc($object) {
       }
     } else if (!in_array($method, $methods)) {
       $msg = 'There is no ' . $method . ' method';
-      echo response(null, $id, array("code" =>-32601, "message" => $msg));
+      echo response(null, $id, array("code" => -32601, "message" => $msg));
     } else {
       //throw new Exception('x -> ' . json_encode($params));
       $result = call_user_func_array(array($object, $method), $params);
@@ -203,7 +203,7 @@ function handle_json_rpc($object) {
   } catch (Exception $e) {
     //catch all exeption from user code
     $msg = "Internal error: " . $e->getMessage();
-    echo response(null, $id, array("code"=>-32603, "message"=>$msg));
+    echo response(null, $id, array("code" => -32603, "message" => $msg));
   }
 }
 
