@@ -115,7 +115,7 @@ function handle_json_rpc($object) {
     $input = iconv($encoding, 'UTF-8', $input);
   }
   $input = json_decode($input);
-  header('Content-Type: text/plain');
+  header('Content-type: application/json');
 
   // handle Errors
   if (!$input) {
