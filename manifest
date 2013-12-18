@@ -21,6 +21,6 @@
     "docs": "http://terminal.jcubic.pl/api_reference.php",
     "download": "https://github.com/jcubic/jquery.terminal/tarball/master",
     "dependencies": {
-        "jquery": ">=1.5"
+        "jquery": ">=1.7"
     }
 }
