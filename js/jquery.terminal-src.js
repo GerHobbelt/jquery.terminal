@@ -2383,12 +2383,12 @@
     // :: $('<div/>').terminal().echo('foo bar').appendTo('body');
     // -----------------------------------------------------------------------
     function char_size() {
-        var temp = $('<div class="terminal"><span>&nbsp;</span></div>').
-            appendTo('body');
+        var temp = $('<div class="terminal"><div class="cmd"><span>&nbsp;' +
+                     '</span></div></div>').appendTo('body');
         var span = temp.find('span');
         var result = {
             width: span.width(),
-            height: span.height
+            height: span.outerHeight()
         };
         temp.remove();
         return result;
@@ -2407,6 +2407,12 @@
             result -= Math.ceil((SCROLLBAR_WIDTH - margins / 2) / (width-1));
         }
         return result;
+    }
+    // -----------------------------------------------------------------------
+    // :: Calculate number of lines that fit without scroll
+    // -----------------------------------------------------------------------
+    function get_num_rows(terminal) {
+        return Math.floor(terminal.height() / char_size().height);
     }
     // -----------------------------------------------------------------------
     // :: Get Selected Text (this is internal because it return text even if
@@ -2924,6 +2930,30 @@
             }
         }
         // -----------------------------------------------------------------------
+        // Redraw all lines
+        // -----------------------------------------------------------------------
+        function redraw() {
+            command_line.resize(num_chars);
+            var o = output.empty().detach();
+            var lines_to_show;
+            if (settings.outputLimit >= 0) {
+                // flush will limit lines but if there is lot of
+                // lines we don't need to show them and then remove
+                // them from terminal
+                var limit = settings.outputLimit === 0 ?
+                    self.rows() :
+                    settings.outputLimit;
+                lines_to_show = lines.slice(lines.length-limit-1);
+            } else {
+                lines_to_show = lines;
+            }
+            $.each(lines_to_show, function(i, line) {
+                draw_line.apply(null, line); // line is an array
+            });
+            command_line.before(o);
+            self.flush();
+        }
+        // -----------------------------------------------------------------------
         // :: Display user greetings or terminal signature
         // -----------------------------------------------------------------------
         function show_greetings() {
@@ -3316,6 +3346,7 @@
             var output; // .terminal-output jquery object
             var terminal_id = terminals.length();
             var num_chars; // numer of chars in line
+            var num_rows; // number of lines that fit without scrollbar
             var command_list = []; // for tab completion
             var url;
             var in_login = false; // some Methods should not be called when login
@@ -3375,7 +3406,7 @@
                     self.set_command(view.command);
                     command_line.position(view.position);
                     lines = view.lines;
-                    self.resize();
+                    redraw();
                     return self;
                 },
                 // -----------------------------------------------------------------------
@@ -3549,7 +3580,7 @@
                 // :: Return the number of lines that fit into the height of the terminal
                 // -----------------------------------------------------------------------
                 rows: function() {
-                    return Math.floor(self.height() / char_size().height);
+                    return num_rows;
                 },
                 // -----------------------------------------------------------------------
                 // :: Return the History object
@@ -3770,27 +3801,12 @@
                     width = self.width();
                     height = self.height();
                     var new_num_chars = get_num_chars(self);
-                    if (new_num_chars !== num_chars) { // only if number of chars changed
+                    var new_num_rows = get_num_rows(self);
+                    // only if number of chars changed
+                    if (new_num_chars !== num_chars || new_num_rows !== num_rows) {
                         num_chars = new_num_chars;
-                        command_line.resize(num_chars);
-                        var o = output.empty().detach();
-                        var lines_to_show;
-                        if (settings.outputLimit >= 0) {
-                            // flush will limit lines but if there is lot of
-                            // lines we don't need to show them and then remove
-                            // them from terminal
-                            var limit = settings.outputLimit === 0 ?
-                                self.rows() :
-                                settings.outputLimit;
-                            lines_to_show = lines.slice(lines.length-limit-1);
-                        } else {
-                            lines_to_show = lines;
-                        }
-                        $.each(lines_to_show, function(i, line) {
-                            draw_line.apply(null, line); // line is an array
-                        });
-                        command_line.before(o);
-                        self.flush();
+                        num_rows = new_num_rows;
+                        redraw();
                         if (typeof settings.onResize === 'function' &&
                             (old_height !== height || old_width !== width)) {
                             settings.onResize(self);
@@ -3873,7 +3889,8 @@
                         }
                         on_scrollbar_show_resize();
                     } catch (e) {
-                        // if echo throw exception we can't use error to display that exception
+                        // if echo throw exception we can't use error to display that
+                        // exception
                         alert('[Terminal.echo] ' + exception_message(e) + '\n' +
                               e.stack);
                     }
@@ -4002,16 +4019,15 @@
                         // result is object with interpreter and completion properties
                         interpreters.push($.extend({}, result, options));
                         if (options.login) {
-                            var l_type = $.type(options.login);
-                            if (l_type == 'function') {
+                            var type = $.type(options.login);
+                            if (type == 'function') {
                                 // self.pop on error
                                 self.login(options.login,
                                            false,
                                            prepare_top_interpreter,
                                            self.pop);
                             } else if ($.type(interpreter) == 'string' &&
-                                       l_type == 'string' || l_type == 'boolean') {
-                                var method = l_type == 'boolean' ? 'login' : options.login;
+                                       type == 'string' || type == 'boolean') {
                                 self.login(make_json_rpc_login(interpreter, options.login),
                                            false,
                                            prepare_top_interpreter,
@@ -4261,6 +4277,7 @@
                 if (self.is(':visible')) {
                     num_chars = get_num_chars(self);
                     command_line.resize(num_chars);
+                    num_rows = get_num_rows(self);
                 }
                 self.oneTime(100, function() {
                     $(window).bind('resize.terminal', function() {
@@ -4274,18 +4291,18 @@
                         }
                     });
                 });
-                var shift = false;
-                $(document).bind('keydown.terminal', function(e) {
-                    if (e.shiftKey) {
-                        shift = true;
-                    }
-                }).bind('keyup.terminal', function(e) {
-                    // in Google Chromium/Linux shiftKey is false
-                    if (e.shiftKey || e.which == 16) {
-                        shift = false;
-                    }
-                });
                 if ($.event.special.mousewheel) {
+                    var shift = false;
+                    $(document).bind('keydown.terminal', function(e) {
+                        if (e.shiftKey) {
+                            shift = true;
+                        }
+                    }).bind('keyup.terminal', function(e) {
+                        // in Google Chromium/Linux shiftKey is false
+                        if (e.shiftKey || e.which == 16) {
+                            shift = false;
+                        }
+                    });
                     self.mousewheel(function(event, delta) {
                         if (!shift) {
                             if (delta > 0) {
