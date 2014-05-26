@@ -409,8 +409,7 @@
         }
     });
 
-    if (jQuery.browser && jQuery.browser.msie ||
-        /(msie) ([\w.]+)/.exec(navigator.userAgent.toLowerCase())) {
+    if (/(msie) ([\w.]+)/.exec(navigator.userAgent.toLowerCase())) {
         jQuery(window).one('unload', function() {
             var global = jQuery.timer.global;
             for (var label in global) {
@@ -514,24 +513,8 @@
         return self;
 
     })();
-
     // -----------------------------------------------------------------------
-    /*
-    function decodeHTML(str) {
-        if (typeof str === 'string') {
-            str = str.replace(/&amp;/g, '&');
-            str = str.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-            str = str.replace(/&#09;/g, '\t');
-            str = str.replace(/<br\/?>/g, '\n').replace(/&nbsp;/g, ' ');
-            return str;
-        } else {
-            return '';
-        }
-    }
-    */
-    //split string to array of strings with the same length
-    // -----------------------------------------------------------------------
-    // :: Split String into equal parts
+    // :: Split string to array of strings with the same length
     // -----------------------------------------------------------------------
     function str_parts(str, length) {
         var result = [];
@@ -1190,7 +1173,7 @@
                 } else if (e.which === 67 && e.ctrlKey && e.shiftKey) { // CTRL+SHIFT+C
                     selected_text = getSelectedText();
                 } else if (e.which === 86 && e.ctrlKey && e.shiftKey) {
-                    if (selected_text != '') {
+                    if (selected_text !== '') {
                         self.insert(selected_text);
                     }
                 } else if (e.which === 9 && !(e.ctrlKey || e.altKey)) { // TAB
@@ -1271,7 +1254,8 @@
                         if (command[position] === ' ') {
                             ++position;
                         }
-                        var match = command.slice(position).match(/\S[\n\s]{2,}|[\n\s]+\S?/);
+                        var re = /\S[\n\s]{2,}|[\n\s]+\S?/;
+                        var match = command.slice(position).match(re);
                         if (!match || match[0].match(/^\s+$/)) {
                             position = command.length;
                         } else {
@@ -1351,7 +1335,7 @@
                             //CTRL+X CTRL+C CTRL+W CTRL+T
                             return true;
                         } else if (e.which === 89) { // CTRL+Y
-                            if (kill_text != '') {
+                            if (kill_text !== '') {
                                 self.insert(kill_text);
                             }
                         } else if (e.which === 86) {
@@ -1368,7 +1352,7 @@
                                 self.set(command.slice(0, position));
                             }
                         } else if (e.which === 85) { // CTRL+U
-                            if (command != '' && position != 0) {
+                            if (command !== '' && position !== 0) {
                                 kill_text = command.slice(0, position);
                                 self.set(command.slice(position, command.length));
                                 self.position(0);
@@ -1670,7 +1654,7 @@
     //var url_re = /https?:\/\/(?:(?!&[^;]+;)[^\s:"'<>)])+/g;
     var url_re = /\bhttps?:\/\/(?:(?!&[^;]+;)[^\s"'<>)])+\b/g;
     var email_re = /((([^<>('")[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,})))/g;
-    var command_re = /('[^']*'|"(\\"|[^"])*"|\/(\\\/|[^\/])*\/|(\\ |[^ ])+|[\w-]+)/g;
+    var command_re = /('[^']*'|"(\\"|[^"])*"|\/(\\\/|[^\/])+\/[gimy]*|(\\ |[^ ])+|[\w-]+)/g;
     var format_begin_re = /(\[\[[gbiuso]*;[^;]*;[^\]]*\])/;
     var format_last_re = /\[\[[gbiuso]*;[^;]*;[^\]]*\]?$/;
     $.terminal = {
@@ -1926,9 +1910,9 @@
             return terminals.front();
         },
         // -----------------------------------------------------------------------
-        // :: Replace ntroff (from man) formatting with terminal formatting
+        // :: Replace overtyping (from man) formatting with terminal formatting
         // -----------------------------------------------------------------------
-        from_ntroff: function(string) {
+        overtyping: function(string) {
             return string.replace(/((?:_\x08.|.\x08_)+)/g, function(full, g) {
                 return '[[u;;]' + full.replace(/_x08|\x08_|_\u0008|\u0008_/g, '') + ']';
             }).replace(/((?:.\x08.)+)/g, function(full, g) {
@@ -2228,8 +2212,9 @@
                     }).replace(/\\0([0-7]+)/g, function(_, oct) {
                         return String.fromCharCode(parseInt(oct, 8));
                     });
-                } else if (arg[0] === '/' && arg[arg.length-1] == '/') {
-                    return new RegExp(arg.replace(/^\/|\/$/g, ''));
+                } else if (arg.match(/^\/(\\\/|[^\/])+\/[gimy]*$/)) {
+                    var m = arg.match(/^\/([^\/]+)\/([^\/]*)$/);
+                    return new RegExp(m[1], m[2]);
                 } else if (arg.match(/^-?[0-9]+$/)) {
                     return parseInt(arg, 10);
                 } else if (arg.match(/^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$/)) {
@@ -2358,8 +2343,9 @@
                         throw new Error('WARN: Response Content-Type is not application/json');
                     }
                 }
+                var json;
                 try {
-                    var json = $.parseJSON(result);
+                    json = $.parseJSON(result);
                 } catch (e) {
                     if (error) {
                         error(jqXHR, 'Invalid JSON', e);
@@ -2524,6 +2510,7 @@
             notWhileLogin: "You can't call that function while in login",
             loginIsNotAFunction: "Authenticate must be a function",
             canExitError: "You can't exit from main interpeter",
+            invalidCompletion: "Invalid completion",
             login: "login",
             password: "password"
         }
@@ -2812,11 +2799,11 @@
         // -----------------------------------------------------------------------
         // :: Create JSON-RPC authentication function
         // -----------------------------------------------------------------------
-        function make_json_rpc_login(login) {
+        function make_json_rpc_login(url, login) {
             var method = $.type(login) === 'boolean' ? 'login' : login;
             return function(user, passwd, callback, term) {
                 self.pause();
-                $.jrpc(init_interpreter,
+                $.jrpc(url,
                        method,
                        [user, passwd],
                        function(response) {
@@ -2902,7 +2889,7 @@
                 if (!line_settings.raw) {
                     string = $.terminal.encode(string);
                 }
-                string = $.terminal.from_ntroff(string);
+                string = $.terminal.overtyping(string);
                 string = $.terminal.from_ansi(string);
                 output_buffer.push(NEW_LINE);
                 if (!line_settings.raw && (string.length > num_chars || string.match(/\n/))) {
@@ -2986,7 +2973,7 @@
                 var interpreter = interpreters.top();
                 if (command === 'exit' && settings.exit) {
                     var count = interpreters.size();
-                        self.token()
+                        self.token();
                     if (count == 1 && self.token() || count > 1) {
                         if (!silent) {
                             echo_command(command);
@@ -3110,7 +3097,7 @@
             // execute after onInit resume)
             var was_paused = false;
             if (typeof settings.onInit === 'function') {
-                onPause = function() {
+                onPause = function() { // local in terminal
                     was_paused = true;
                 };
                 try {
@@ -3133,11 +3120,11 @@
         // ---------------------------------------------------------------------
         function complete_helper(command, string, commands) {
             var test = command_line.get().substring(0, command_line.position());
-            var regex = new RegExp('^' + $.terminal.escape_regex(string));
             if (test !== command) {
                 // command line changed between TABS - ignore
                 return;
             }
+            var regex = new RegExp('^' + $.terminal.escape_regex(string));
             var matched = [];
             for (var i=commands.length; i--;) {
                 if (regex.test(commands[i])) {
@@ -3189,6 +3176,13 @@
                     return result;
                 }
             }
+            var completion;
+            if ((settings.completion && $.type(settings.completion) != 'boolean') &&
+                !top.completion) {
+                completion = settings.completion;
+            } else {
+                completion = top.completion;
+            }
             // after text pasted into textarea in cmd plugin
             self.oneTime(10, function() {
                 on_scrollbar_show_resize();
@@ -3220,7 +3214,7 @@
                     return false;
                 } else if (e.which === 76 && e.ctrlKey) { // CTRL+L
                     self.clear();
-                } else if (settings.completion && e.which === 9) { // TAB
+                } else if (completion && e.which === 9) { // TAB
                     // TODO: move this to cmd plugin
                     //       add completion = array | function
                     ++tab_count;
@@ -3242,12 +3236,6 @@
                             }
                         }
                     }
-                    var completion;
-                    if ((settings.completion && $.type(settings.completion) != 'boolean') && !top.completion) {
-                        completion = settings.completion;
-                    } else {
-                        completion = top.completion;
-                    }
                     switch ($.type(completion)) {
                     case 'function':
                         completion(self, string, function(commands) {
@@ -3258,7 +3246,8 @@
                         complete_helper(command, string, completion);
                         break;
                     default:
-                        throw new Error("Invalid completion");
+                        // terminal will not catch this because it's an event
+                        throw new Error($.terminal.defaults.strings.invalidCompletion);
                     }
                     return false;
                 } else if (e.which === 86 && e.ctrlKey) { // CTRL+V
@@ -3409,11 +3398,11 @@
                 // :: the callback that expects a token. The login is successful
                 // :: if the user calls it with value that is truthy
                 // -----------------------------------------------------------------------
-                login: function(authenticate, infinite, success) {
+                login: function(auth, infinite, success, error) {
                     if (in_login) {
                         throw new Error(strings.notWhileLogin);
                     }
-                    if (typeof authenticate !== 'function') {
+                    if (typeof auth !== 'function') {
                         throw new Error(strings.loginIsNotAFunction);
                     }
                     if (self.token(true) && self.login_name(true)) {
@@ -3429,10 +3418,9 @@
                     }
                     in_login = true;
                     return self.push(function(user) {
-                        self.set_mask(true).push(function(passwd) {
-                            self.pause();
+                        self.set_mask(true).push(function(pass) {
                             try {
-                                authenticate(user, passwd, function(token, silent) {
+                                auth.call(self, user, pass, function(token, silent) {
                                     if (token) {
                                         self.pop().pop();
                                         if (settings.history) {
@@ -3448,11 +3436,8 @@
                                             // it happen by calling the callback -
                                             // this funtion)
                                             success();
-                                        } else {
-                                            self.resume();
                                         }
                                     } else {
-                                        self.resume();
                                         if (infinite) {
                                             if (!silent) {
                                                 self.error(strings.wrongPasswordTryAgain);
@@ -3464,6 +3449,10 @@
                                                 self.error(strings.wrongPassword);
                                             }
                                             self.pop().pop();
+                                        }
+                                        // used only to call pop in push
+                                        if (typeof error == 'function') {
+                                            error();
                                         }
                                     }
                                 });
@@ -3501,7 +3490,7 @@
                         });
                     }
                     if ($.type(user_interpreter) == 'string' && login) {
-                        self.login(make_json_rpc_login(login),
+                        self.login(make_json_rpc_login(user_interpreter, login),
                                    true,
                                    overwrite_interpreter);
                     } else {
@@ -3785,7 +3774,19 @@
                         num_chars = new_num_chars;
                         command_line.resize(num_chars);
                         var o = output.empty().detach();
-                        $.each(lines, function(i, line) {
+                        var lines_to_show;
+                        if (settings.outputLimit >= 0) {
+                            // flush will limit lines but if there is lot of
+                            // lines we don't need to show them and then remove
+                            // them from terminal
+                            var limit = settings.outputLimit === 0 ?
+                                self.rows() :
+                                settings.outputLimit;
+                            lines_to_show = lines.slice(lines.length-limit-1);
+                        } else {
+                            lines_to_show = lines;
+                        }
+                        $.each(lines_to_show, function(i, line) {
                             draw_line.apply(null, line); // line is an array
                         });
                         command_line.before(o);
@@ -3807,60 +3808,39 @@
                 flush: function() {
                     try {
                         var wrapper;
-                        if (settings.outputLimit >= 0) {
-                            var rows = self.rows();
-                            var limit;
-                            if (settings.outputLimit === 0) {
-                                limit = rows;
+                        // print all lines
+                        $.each(output_buffer, function(i, line) {
+                            if (line === NEW_LINE) {
+                                wrapper = $('<div></div>');
+                            } else if (typeof line === 'function') {
+                                wrapper.appendTo(output);
+                                try {
+                                    line(wrapper);
+                                } catch (e) {
+                                    display_exception(e, 'USER:echo(finalize)');
+                                }
                             } else {
-                                limit = settings.outputLimit;
+                                $('<div/>').html(line).appendTo(wrapper).width('100%');
                             }
-                            var lines = 0;
-                            var finalize;
-                            var tmp_output = $('<div/>');
-                            for (var i=output_buffer.length; i--;) {
-                                if (typeof output_buffer[i] === 'function') {
-                                    finalize = output_buffer[i];
-                                    wrapper = $('<div/>');
-                                } else if (output_buffer[i] === NEW_LINE) {
-                                    wrapper.prependTo(tmp_output);
-                                    try {
-                                        finalize(wrapper);
-                                    } catch (e) {
-                                        display_exception(e, 'USER:echo(finalize)');
+                        });
+                        if (settings.outputLimit >= 0) {
+                            var limit = settings.outputLimit === 0 ?
+                                self.rows() :
+                                settings.outputLimit;
+                            var $lines = output.find('div div');
+                            if ($lines.length > limit) {
+                                var for_remove = $lines.slice(0, lines.length-limit+1);
+                                // you can't get parent if you remove the element so
+                                // we first get the parent
+                                var parents = for_remove.parent();
+                                for_remove.remove();
+                                parents.each(function() {
+                                    var self = $(this);
+                                    if (self.is(':empty')) {
+                                        self.remove();
                                     }
-                                } else {
-                                    wrapper.prepend('<div>' + output_buffer[i] + '</div>');
-                                    if (++lines === limit) {
-                                        if (output_buffer[i-1] !== NEW_LINE) {
-                                            // cut in the middle of the line
-                                            try {
-                                                finalize(wrapper);
-                                            } catch (e) {
-                                                display_exception(e, 'USER:echo(finalize)');
-                                            }
-                                        }
-                                        break;
-                                    }
-                                }
+                                });
                             }
-                            tmp_output.children().appendTo(output);
-                        } else {
-                            // print all
-                            $.each(output_buffer, function(i, line) {
-                                if (line === NEW_LINE) {
-                                    wrapper = $('<div></div>');
-                                } else if (typeof line === 'function') {
-                                    wrapper.appendTo(output);
-                                    try {
-                                        line(wrapper);
-                                    } catch (e) {
-                                        display_exception(e, 'USER:echo(finalize)');
-                                    }
-                                } else {
-                                    $('<div/>').html(line).appendTo(wrapper).width('100%');
-                                }
-                            });
                         }
                         scroll_to_bottom();
                         output_buffer = [];
@@ -3887,18 +3867,9 @@
                         }, options || {});
                         output_buffer = [];
                         draw_line(string, settings);
+                        lines.push([string, settings]);
                         if (settings.flush) {
                             self.flush();
-                        }
-                        lines.push([string, settings]);
-                        if (settings.outputLimit >= 0) {
-                            var limit = settings.outputLimit === 0 ?
-                                self.rows() :
-                                settings.outputLimit;
-                            var $lines = output.find('div div');
-                            if ($lines.length > limit) {
-                                $lines.slice(0, lines.length-limit+1).remove();
-                            }
                         }
                         on_scrollbar_show_resize();
                     } catch (e) {
@@ -4019,22 +3990,37 @@
                 // :: Push a new interenter on the Stack
                 // -----------------------------------------------------------------------
                 push: function(interpreter, options) {
-                    if (options && (!options.prompt || validate('prompt', options.prompt)) ||
-                        !options) {
-                        options = options || {};
-                        options.name = options.name || prev_command;
-                        options.prompt = options.prompt || options.name + ' ';
-                        //names.push(options.name);
-                        var top = interpreters.top();
-                        if (top) {
-                            top.mask = command_line.mask();
-                        }
-                        make_interpreter(interpreter, function(result) {
-                            // result is object with interpreter and completion properties
-                            interpreters.push($.extend({}, result, options));
-                            prepare_top_interpreter();
-                        });
+                    options = options || {};
+                    options.name = options.name || prev_command;
+                    options.prompt = options.prompt || options.name + ' ';
+                    //names.push(options.name);
+                    var top = interpreters.top();
+                    if (top) {
+                        top.mask = command_line.mask();
                     }
+                    make_interpreter(interpreter, function(result) {
+                        // result is object with interpreter and completion properties
+                        interpreters.push($.extend({}, result, options));
+                        if (options.login) {
+                            var l_type = $.type(options.login);
+                            if (l_type == 'function') {
+                                // self.pop on error
+                                self.login(options.login,
+                                           false,
+                                           prepare_top_interpreter,
+                                           self.pop);
+                            } else if ($.type(interpreter) == 'string' &&
+                                       l_type == 'string' || l_type == 'boolean') {
+                                var method = l_type == 'boolean' ? 'login' : options.login;
+                                self.login(make_json_rpc_login(interpreter, options.login),
+                                           false,
+                                           prepare_top_interpreter,
+                                           self.pop);
+                            }
+                        } else {
+                            prepare_top_interpreter();
+                        }
+                    });
                     return self;
                 },
                 // -----------------------------------------------------------------------
@@ -4210,7 +4196,7 @@
             // create json-rpc authentication function
             if (typeof init_interpreter === 'string' &&
                 (typeof settings.login === 'string' || settings.login)) {
-                settings.login = make_json_rpc_login(settings.login);
+                settings.login = make_json_rpc_login(init_interpreter, settings.login);
             }
             terminals.append(self);
             var interpreters;
@@ -4288,16 +4274,28 @@
                         }
                     });
                 });
-                if ($.type($.fn.init.prototype.mousewheel) === 'function') {
+                var shift = false;
+                $(document).bind('keydown.terminal', function(e) {
+                    if (e.shiftKey) {
+                        shift = true;
+                    }
+                }).bind('keyup.terminal', function(e) {
+                    // in Google Chromium/Linux shiftKey is false
+                    if (e.shiftKey || e.which == 16) {
+                        shift = false;
+                    }
+                });
+                if ($.event.special.mousewheel) {
                     self.mousewheel(function(event, delta) {
-                        //self.echo(dir(event));
-                        if (delta > 0) {
-                            self.scroll(-40);
-                        } else {
-                            self.scroll(40);
+                        if (!shift) {
+                            if (delta > 0) {
+                                self.scroll(-40);
+                            } else {
+                                self.scroll(40);
+                            }
+                            //event.preventDefault();
                         }
-                        return false;
-                    }, true);
+                    });
                 }
             });
             self.data('terminal', self);
