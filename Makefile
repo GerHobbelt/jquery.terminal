@@ -27,6 +27,6 @@ terminal.jquery.json: manifest .$(VERSION)
 	$(SED) -e "s/{{VER}}/$(VERSION)/g" manifest > terminal.jquery.json
 
 clean:
-	-rm -f js/jquery.terminal-0.*.js js/jquery.terminal-0.*.min.js js/jquery.terminal.js js/jquery.terminal.min.js README.md terminal.jquery.json
+	-rm -f js/jquery.terminal-0.*.js js/jquery.terminal-0.*.min.js js/jquery.terminal.js js/jquery.terminal.min.js js/jquery.terminal-min.js README.md terminal.jquery.json
 
 .PHONY: ALL clean
