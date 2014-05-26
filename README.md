@@ -4,7 +4,7 @@
   __ / // // // // // _  // _// // / / // _  // _//     // //  \/ // _ \/ /
  /  / // // // // // ___// / / // / / // ___// / / / / // // /\  // // / /__
  \___//____ \\___//____//_/ _\_  / /_//____//_/ /_/ /_//_//_/ /_/ \__\_\___/
-           \/              /____/                              version 0.8.4
+           \/              /____/                              version 0.8.5
 ```
 http://terminal.jcubic.pl
 
@@ -93,6 +93,12 @@ jQuery(function($, undefined) {
         width: 450,
         prompt: 'demo> '});
 });
+```
+
+You can create JSON-RPC interpreter with authentication with just one line:
+
+```javascript
+$('#term_demo').terminal('service.php', {login: true});
 ```
 
 More examples [here](http://terminal.jcubic.pl/examples.php). You can also check
