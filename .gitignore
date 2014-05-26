@@ -2,8 +2,12 @@
 *~
 *.bak
 
+# bower
+components
+
 # Makefile temp files
 .[0-9/]*
 
 # minified files
 js/*.min.js
+
