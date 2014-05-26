@@ -190,6 +190,45 @@
         });
         return result;
     };
+    var Clone = {
+        cloneObject: function(object) {
+            var tmp = {};
+            if (typeof object == 'object') {
+                if ($.isArray(object)) {
+                    return this.cloneArray(object);
+                } else if (object == null) {
+                    return object;
+                } else {
+                    for (var key in object) {
+                        if ($.isArray(object[key])) {
+                            tmp[key] = this.cloneArray(object[key]);
+                        } else if (typeof object[key] == 'object') {
+                            tmp[key] = this.cloneObject(object[key]);
+                        } else {
+                            tmp[key] = object[key];
+                        }
+                    }
+                }
+            }
+            return tmp;
+        },
+        cloneArray: function(array) {
+            if (!$.isFunction(Array.prototype.map)) {
+                throw new Error("You'r browser don't support ES5 array map " +
+                                "use es5-shim");
+            }
+            return array.slice(0).map(function(item) {
+                if (typeof item == 'object') {
+                    return this.cloneObject(item);
+                } else {
+                    return item;
+                }
+            }.bind(this));
+        }
+    };
+    var clone = function(object) {
+        return Clone.cloneObject(object);
+    };
     // -----------------------------------------------------------------------
     // :: Storage plugin
     // -----------------------------------------------------------------------
@@ -566,6 +605,9 @@
             },
             length: function() {
                 return data.length;
+            },
+            remove: function(index) {
+                data.splice(index, 0);
             },
             set: function(item) {
                 for (var i = data.length; i--;) {
@@ -1035,7 +1077,7 @@
                             lines_after(array.slice(2));
                         } else {
                             var last = array.slice(-1)[0];
-                            var from_last = string.length - position;
+                            var from_last = string.length - position - tabs_rm;
                             var last_len = last.length;
                             var pos = 0;
                             if (from_last <= last_len) {
@@ -1045,7 +1087,7 @@
                                 } else {
                                     pos = last_len-from_last;
                                 }
-                                draw_cursor_line(last, pos+tabs_rm);
+                                draw_cursor_line(last, pos);
                             } else {
                                 // in the middle
                                 if (num_lines === 3) {
@@ -1175,9 +1217,11 @@
                         self.insert('\n');
                     } else {
                         if (history && command && !mask &&
-                            (($.isFunction(options.historyFilter) &&
-                              options.historyFilter(command)) ||
-                             !options.historyFilter)) {
+                            ($.isFunction(options.historyFilter) && options.historyFilter(command)) ||
+                            (typeof options.historyFilter == 'object' &&
+                             options.historyFilter.constructor == RegExp &&
+                             command.match(options.historyFilter)) ||
+                            !options.historyFilter) {
                             history.append(command);
                         }
                         var tmp = command;
@@ -1895,9 +1939,9 @@
                                     return ''; //'<span>&nbsp;</span>';
                                 }
                                 text = text.replace(/\\]/g, ']');
-                                var style = '';
+                                var style_str = '';
                                 if (style.indexOf('b') !== -1) {
-                                    style += 'font-weight:bold;';
+                                    style_str += 'font-weight:bold;';
                                 }
                                 var text_decoration = [];
                                 if (style.indexOf('u') !== -1) {
@@ -1910,22 +1954,20 @@
                                     text_decoration.push('overline');
                                 }
                                 if (text_decoration.length) {
-                                    style += 'text-decoration:' +
+                                    style_str += 'text-decoration:' +
                                         text_decoration.join(' ') + ';';
                                 }
                                 if (style.indexOf('i') !== -1) {
-                                    style += 'font-style:italic;';
+                                    style_str += 'font-style:italic;';
                                 }
                                 if ($.terminal.valid_color(color)) {
-                                    style += 'color:' + color + ';';
+                                    style_str += 'color:' + color + ';';
                                     if (style.indexOf('g') !== -1) {
-                                        style += 'text-shadow:0 0 5px ' +
-                                            color + ';';
+                                        style_str += 'text-shadow:0 0 5px ' + color + ';';
                                     }
                                 }
                                 if ($.terminal.valid_color(background)) {
-                                    style += 'background-color:' +
-                                        background;
+                                    style_str += 'background-color:' + background;
                                 }
                                 var data;
                                 if (data_text === '') {
@@ -1933,7 +1975,7 @@
                                 } else {
                                     data = data_text.replace(/&#93;/g, ']');
                                 }
-                                var result = '<span style="' + style + '"';
+                                var result = '<span style="' + style_str + '"';
                                 if (_class !== '') {
                                     result += ' class="' + _class + '"';
                                 }
@@ -2356,7 +2398,7 @@
     // -----------------------------------------------------------------------
     // JSON-RPC CALL
     // -----------------------------------------------------------------------
-    var ids = {};
+    var ids = {}; // list of url based id of JSON-RPC
     $.jrpc = function(url, method, params, success, error) {
         ids[url] = ids[url] || 0;
         var request = $.json_stringify({
@@ -2482,7 +2524,7 @@
     // :: Terminal Signatures
     // -----------------------------------------------------------------------
     var signatures = [
-        ['jQuery Terminal', '(c) 2011-2013 jcubic'],
+        ['jQuery Terminal', '(c) 2011-2014 jcubic'],
         ['jQuery Terminal Emulator' + (version_set ? ' v. ' + version : ''),
          copyright.replace(/ *<.*>/, '')],
         ['jQuery Terminal Emulator' + (version_set ? version_string : ''),
@@ -2520,6 +2562,16 @@
         cancelableAjax: true,
         processArguments: true,
         linksNoReferrer: false,
+        Token: true,
+        historyState: false,
+        historyStateUrlMapper: (function() {
+            var base = window.location.href.replace(/\/[^\/]*$/, '');
+            return function(command) {
+                var cmd = $.terminal.splitCommand(command);
+                var url = base + '/' + cmd.name + '/' + cmd.args.join('/');
+                return url;
+            };
+        })(),
         login: null,
         outputLimit: -1,
         onAjaxError: null,
@@ -2538,11 +2590,13 @@
             wrongPasswordTryAgain: "Wrong password try again!",
             wrongPassword: "Wrong password!",
             ajaxAbortError: "Error while aborting ajax call!",
-            wrongArity: "Wrong number of arguments. Function '%s' expect %s got %s!",
+            wrongArity: "Wrong number of arguments. Function '%s' expect %s got"+
+                "%s!",
             commandNotFound: "Command '%s' Not Found!",
-            oneRPCWithIgnore: "You can use only one rpc with ignoreSystemDescribe",
-            oneInterpreterFunction: "You can't use more then one function (rpc with " +
-                "ignoreSystemDescribe is count as one)",
+            oneRPCWithIgnore: "You can use only one rpc with ignoreSystemDescr"+
+                "ibe",
+            oneInterpreterFunction: "You can't use more then one function (rpc"+
+                "with ignoreSystemDescribe is count as one)",
             loginFunctionMissing: "You don't have login function",
             noTokenError: "Access denied (no token)",
             serverResponse: "Server reponse is",
@@ -2551,15 +2605,21 @@
             loginIsNotAFunction: "Authenticate must be a function",
             canExitError: "You can't exit from main interpeter",
             invalidCompletion: "Invalid completion",
+            invalidSelector: 'Sorry, but terminal said that "%s" is not valid '+
+                'selector!',
             login: "login",
             password: "password"
         }
     };
-    // -----------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // :: All terminal globals
-    // -----------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     var requests = []; // for canceling on CTRL+D
     var terminals = new Cycle(); // list of terminals global in this scope
+    // state for all terminals, terminals can't have own array fo state because
+    // there is only one popstate event
+    var save_state = []; // hold objects returned by export_view by history API
+    var first_instance = true; // used by history state
     $.fn.terminal = function(init_interpreter, options) {
         // ---------------------------------------------------------------------
         // :: helper function
@@ -3039,10 +3099,63 @@
             }
         }
         // ---------------------------------------------------------------------
+        // :: Helper function that save state of the terminal and push url using
+        // :: history API
+        // ---------------------------------------------------------------------
+        function save_history_state(command) {
+            var url = settings.historyStateUrlMapper(command);
+            var title = settings.historyStateTitleMapper(command);
+            self.save_state(title, url);
+        }
+        // ---------------------------------------------------------------------
+        // :: Restore state using previously save state, this function is used
+        // :: as event handler for popstate
+        // ---------------------------------------------------------------------
+        function restore_history_state() {
+            try {
+                if (save_state.length) {
+                    var state, terminal;
+                    if (history.state === null) {
+                        state = save_state[0];
+                        terminal = terminals.get()[0];
+                    } else {
+                        state = save_state[history.state.position];
+                        terminal = terminals.get()[history.state.id];
+                    }
+                    terminal.import_view(state.view);
+                    if (state.join.length) {
+                        $.each(state.join, function(_, state) {
+                            var terminal = terminals.get()[state.id];
+                            terminal.import_view(state.view);
+                        });
+                    }
+                }
+            } catch(e) {
+                // display execetion on first terminal
+                display_exception(e, 'TERMINAL');
+            }
+        }
+        // ---------------------------------------------------------------------
         // :: Wrapper over interpreter, it implements exit and catches all
         // :: exeptions from user code and displays them on the terminal
         // ---------------------------------------------------------------------
+        var first_command = true;
         function commands(command, silent, exec) {
+            // first command store state of the terminal before the command get
+            // executed
+            if (first_command && settings.historyState) {
+                first_command = false;
+                // join terminal sate to current history state of other terminal
+                if (save_state.length) {
+                    var pos = history.state.position || save_state.length-1;
+                    save_state[pos].join.push({
+                        id: terminal_id,
+                        view: $.extend(self.export_view(), {focus: false})
+                    });
+                } else {
+                    save_state.push({view:self.export_view(), join:[]});
+                }
+            }
             try {
                 if (!ghost()) {
                     prev_command = $.terminal.splitCommand(command).name;
@@ -3072,6 +3185,16 @@
                     } else {
                         // Execute command from the interpreter
                         var result = interpreter.interpreter(command, self);
+                        if (settings.historyState) {
+                            if (paused) {
+                                self.bind('resume', function() {
+                                    save_history_state(command);
+                                    self.unbind('resume');
+                                });
+                            } else {
+                                save_history_state(command);
+                            }
+                        }
                         if (result !== undefined) {
                             // was lines after echo_command (by interpreter)
                             if (position === lines.length-1) {
@@ -3197,6 +3320,10 @@
                     }
                 }
             }
+            if (settings.historyState && first_instance) {
+                first_instance = false;
+                $(window).on('popstate', restore_history_state);
+            }
         }
         // ---------------------------------------------------------------------
         // :: function complete the command
@@ -3241,10 +3368,10 @@
             }
         }
         // ---------------------------------------------------------------------
-        // :: IF Ghost don't store anything in localstorage
+        // :: If Ghost don't store anything in localstorage
         // ---------------------------------------------------------------------
         function ghost() {
-            return in_login || command_line.mask();
+            return in_login || command_line.mask() !== false;
         }
         // ---------------------------------------------------------------------
         // :: Keydown event handler
@@ -3385,8 +3512,7 @@
                 return self.data('terminal');
             }
             if (self.length === 0) {
-                throw 'Sorry, but terminal said that "' + self.selector +
-                    '" is not valid selector!';
+                throw sprintf($.terminal.defaults.strings.invalidSelector, self.selector);
             }
             //var names = []; // stack if interpeter names
             var scroll_object;
@@ -3409,9 +3535,16 @@
             var onPause = $.noop;//used to indicate that user call pause onInit
             var old_width, old_height;
             var dalyed_commands = []; // used when exec commands while paused
+            var uniqe_defaults = {
+                name: self.selector,
+                historyStateTitleMapper: function(command) {
+                    var title = $('title').text();
+                    return title + ' [' + command + ']';
+                }
+            };
             var settings = $.extend({},
                                     $.terminal.defaults,
-                                    {name: self.selector},
+                                    uniqe_defaults,
                                     options || {});
             var strings = $.terminal.defaults.strings;
             var enabled = settings.enabled;
@@ -3445,10 +3578,12 @@
                         throw new Exception(strings.notWhileLogin);
                     }
                     return {
+                        focus: enabled,
+                        mask: command_line.mask(),
                         prompt: self.get_prompt(),
                         command: self.get_command(),
                         position: command_line.position(),
-                        lines: lines.slice(0)
+                        lines: clone(lines)
                     };
                 },
                 // -------------------------------------------------------------
@@ -3461,9 +3596,24 @@
                     self.set_prompt(view.prompt);
                     self.set_command(view.command);
                     command_line.position(view.position);
-                    lines = view.lines;
+                    command_line.mask(view.mask);
+                    if (view.focus) {
+                        self.focus();
+                    }
+                    lines = clone(view.lines);
                     redraw();
                     return self;
+                },
+                // -------------------------------------------------------------
+                // :: Store current terminal state using History API
+                // -------------------------------------------------------------
+                save_state: function(title, url) {
+                    var state = {
+                        id: terminal_id,
+                        position: save_state.length
+                    };
+                    history.pushState(state, title, url);
+                    save_state.push({view:self.export_view(), join:[]});
                 },
                 // -------------------------------------------------------------
                 // :: Execute a command, it will handle commands that do AJAX
@@ -3622,6 +3772,7 @@
                         while (original.length) {
                             self.exec.apply(self, original.shift());
                         }
+                        self.trigger('resume');
                         scroll_to_bottom();
                     }
                     return self;
@@ -3814,8 +3965,8 @@
                 set_prompt: function(prompt) {
                     if (validate('prompt', prompt)) {
                         if ($.isFunction(prompt)) {
-                            command_line.prompt(function(command) {
-                                prompt(command, self);
+                            command_line.prompt(function(callback) {
+                                prompt(callback, self);
                             });
                         } else {
                             command_line.prompt(prompt);
@@ -4030,10 +4181,10 @@
                 // :: exception if there is no login provided
                 // -------------------------------------------------------------
                 logout: settings.login ? function() {
-                    while (interpreters.size() > 1) {
+                    while (interpreters.size() > 0) {
                         self.pop();
                     }
-                    return self.pop();
+                    return self;
                 } : function() {
                     self.error(strings.loginFunctionMissing);
                 },
@@ -4046,6 +4197,20 @@
                     return $.Storage.get(self.prefix_name(local) + '_token');
                 } : $.noop,
                 // -------------------------------------------------------------
+                // :: Function sets the token to the supplied value. This function
+                // :: works regardless of wherer settings.login is supplied
+                // -------------------------------------------------------------
+                set_token : function(token,local) {
+                    $.Storage.set(self.prefix_name(local) + '_token', token);
+                },
+                // -------------------------------------------------------------
+                // :: Function get the token either set by the login method or
+                // :: by the set_token method.
+                // -------------------------------------------------------------
+                get_token : function(local) {
+                    return $.Storage.get(self.prefix_name(local) + '_token');
+                },
+                // -----------------------------------------------------------------------
                 // :: Function return Login name entered by the user
                 // -------------------------------------------------------------
                 login_name: settings.login ? function(local) {
@@ -4199,6 +4364,11 @@
                     }
                     if (settings.height) {
                         self.css('height', '');
+                    }
+                    terminals.remove(terminal_id);
+                    if (!terminals.length()) {
+                        // last terminal
+                        $(window).off('popstate', restore_history_state);
                     }
                     return self;
                 }
