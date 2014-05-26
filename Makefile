@@ -1,4 +1,5 @@
-VERSION=0.7.12
+VERSION=0.8.0
+COMPRESS=uglifyjs
 JSC=java -jar bin/closure.bin/compiler.jar --js
 SED=sed
 CP=cp
@@ -9,7 +10,7 @@ js/jquery.terminal-$(VERSION).js: js/jquery.terminal-src.js .$(VERSION)
 	$(SED) -e "s/{{VER}}/$(VERSION)/g" -e "s/{{DATE}}/`date -uR`/g" js/jquery.terminal-src.js > js/jquery.terminal-$(VERSION).js
 
 js/jquery.terminal-$(VERSION).min.js: js/jquery.terminal-$(VERSION).js
-	$(JSC) js/jquery.terminal-$(VERSION).js > js/jquery.terminal-$(VERSION).min.js
+	$(COMPRESS) -o js/jquery.terminal-$(VERSION).min.js js/jquery.terminal-$(VERSION).js
 
 js/jquery.terminal.js: js/jquery.terminal-$(VERSION).js
 	$(CP) js/jquery.terminal-$(VERSION).js js/jquery.terminal.js
