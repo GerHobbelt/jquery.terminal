@@ -1,4 +1,4 @@
-VERSION=0.8.7
+VERSION=0.9.0
 COMPRESS=uglifyjs
 JSC=java -jar bin/closure.bin/compiler.jar --js
 SED=sed
