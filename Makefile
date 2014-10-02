@@ -4,7 +4,9 @@ JSC=java -jar bin/closure.bin/compiler.jar --js
 SED=sed
 CP=cp
 
-ALL: js/jquery.terminal-$(VERSION).js js/jquery.terminal-$(VERSION).min.js js/jquery.terminal.js js/jquery.terminal.min.js README.md terminal.jquery.json bower.json
+ALL: js/jquery.terminal-$(VERSION).js js/jquery.terminal.js README.md terminal.jquery.json bower.json
+
+minified: ALL js/jquery.terminal-$(VERSION).min.js js/jquery.terminal.min.js
 
 bower.json: bower.in
 	$(SED) -e "s/{{VER}}/$(VERSION)/g" bower.in > bower.json
@@ -33,4 +35,4 @@ terminal.jquery.json: manifest .$(VERSION)
 clean:
 	-rm -f js/jquery.terminal-0.*.js js/jquery.terminal-0.*.min.js js/jquery.terminal.js js/jquery.terminal.min.js js/jquery.terminal-min.js README.md terminal.jquery.json
 
-.PHONY: ALL clean
+.PHONY: ALL minified clean
